@@ -8,86 +8,120 @@ async function run() {
     const acao = Stock.new(symbol, startPrice);
     const display = document.getElementById("stock-display");
     
-    // --- 1. Configuração do Gráfico ---
-    const ctx = document.getElementById('stockChart').getContext('2d');
-    
-    const stockChart = new Chart(ctx, {
+    // --- Configuração dos Gráficos ---
+    // 1. Gráfico de Preço (Principal)
+    const ctxPrice = document.getElementById('stockChart').getContext('2d');
+    const priceChart = new Chart(ctxPrice, {
         type: 'line',
         data: {
-            labels: [], // Começa vazio
+            labels: [],
             datasets: [
                 {
-                    label: `${symbol} (Preço)`,
+                    label: 'Preço (R$)',
                     data: [],
-                    borderColor: 'rgb(75, 192, 192)', // Verde
+                    borderColor: 'rgb(75, 192, 192)',
                     tension: 0.1,
-                    pointRadius: 0, // Sem bolinhas no preço
+                    pointRadius: 0,
                     borderWidth: 2
+                },
+                {
+                    label: 'SMA (10)',
+                    data: [],
+                    borderColor: 'rgb(255, 99, 132)',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    spanGaps: true
                 }
             ]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: false, // Desliga animação para atualizar rápido
-            scales: {
-                x: { display: false } // Esconde eixo X
-            }
+            responsive: true, maintainAspectRatio: false, animation: false,
+            scales: { x: { display: false } },
+            plugins: { title: { display: true, text: 'Evolução do Preço' } }
         }
     });
 
-    // --- 2. Loop de Atualização ---
+    // 2. Gráfico de RSI (Secundário)
+    const ctxRSI = document.getElementById('rsiChart').getContext('2d');
+    const rsiChart = new Chart(ctxRSI, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'RSI (14)',
+                data: [],
+                borderColor: 'purple',
+                borderWidth: 2,
+                pointRadius: 0,
+                spanGaps: true
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, animation: false,
+            scales: {
+                x: { display: false },
+                y: { min: 0, max: 100 } // RSI é sempre 0-100
+            },
+            plugins: { title: { display: true, text: 'Índice de Força Relativa (RSI)' } }
+        }
+    });
+
+    // --- Loop de Atualização ---
     setInterval(() => {
-        // 1. Processamento Rust
         acao.update_price();
         const preco = acao.price();
         
-        // CONVERTER DADOS RUST PARA JS PURO (Evita bugs de TypedArray)
-        // O Array.from garante que temos uma lista simples que o Chart.js entende bem
-        const novoHistorico = Array.from(acao.history()); 
-        const smaValues = Array.from(acao.calculate_sma(10));
+        // --- BLOCO DE DEPURAÇÃO DA VOLATILIDADE ---
+        let volatility = 0.0;
+        
+        // 1. Verificamos se a função existe no objeto Rust
+        if (typeof acao.calculate_volatility === 'function') {
+            // 2. Tentamos calcular
+            volatility = acao.calculate_volatility(20);
+            console.log("Status Volatilidade:", volatility);
+        } else {
+            console.error("ERRO CRÍTICO: O Wasm não tem a função 'calculate_volatility'. Recompilação necessária!");
+        }
+        // ------------------------------------------
 
-        // 2. Atualizar Display de Texto
-        const mensagem = `Ação: ${symbol} | Preço: R$ ${preco.toFixed(2)}`;
-        if (display) {
-            display.innerText = mensagem;
-            display.style.color = preco >= startPrice ? "green" : "red";
+        // Convertendo dados do Rust
+        const history = Array.from(acao.history());
+        const sma = Array.from(acao.calculate_sma(10));
+        const rsi = Array.from(acao.calculate_rsi(14));
+
+        // Atualiza Texto (Painel Completo)
+        if(display) {
+            display.innerHTML = `
+                <span style="margin-right: 15px; font-weight: bold;">Ação: ${symbol}</span>
+                <span style="margin-right: 15px; color: ${preco >= startPrice ? 'green' : 'red'}">
+                    Preço: R$ ${preco.toFixed(2)}
+                </span>
+                <span style="margin-right: 15px; color: purple">
+                    RSI: ${rsi.length > 0 ? rsi[rsi.length-1].toFixed(1) : "..."}
+                </span>
+                <span style="color: orange; font-weight: bold;">
+                    Volatilidade: ${volatility.toFixed(3)}
+                </span>
+            `;
         }
 
-        // 3. Atualizar Gráfico
-        const novosLabels = Array.from({length: novoHistorico.length}, (_, i) => i);
-        stockChart.data.labels = novosLabels;
-        
-        // Dataset 0: Preço
-        stockChart.data.datasets[0].data = novoHistorico;
+        const labels = Array.from({length: history.length}, (_, i) => i);
 
-        // Dataset 1: SMA (Criar se não existir ou atualizar)
-        if (stockChart.data.datasets.length < 2) {
-            stockChart.data.datasets.push({
-                label: `SMA (10 períodos)`,
-                data: [],
-                borderColor: 'rgb(255, 99, 132)', // Vermelho
-                borderWidth: 2,
-                pointRadius: 0, // Linha limpa
-                spanGaps: true  // <--- IMPORTANTE: Conecta a linha mesmo com falhas
-            });
-        }
-
-        // Lógica de Alinhamento (Padding)
-        // Se temos 50 preços e 40 médias, precisamos de 10 nulls no começo da média
-        const diferenca = novoHistorico.length - smaValues.length;
-        const nullPadding = new Array(diferenca).fill(null);
+        // Atualiza Gráfico de Preço
+        priceChart.data.labels = labels;
+        priceChart.data.datasets[0].data = history;
         
-        // Junta os nulls com os valores da média
-        stockChart.data.datasets[1].data = nullPadding.concat(smaValues);
-        
-        // Renderiza
-        stockChart.update();
+        const smaPadding = new Array(history.length - sma.length).fill(null);
+        priceChart.data.datasets[1].data = smaPadding.concat(sma);
+        priceChart.update();
 
-        // Log para garantir que está vivo
-        if (smaValues.length > 0) {
-            console.log(`SMA: ${smaValues.length} pontos | Último: ${smaValues[smaValues.length-1].toFixed(2)}`);
-        }
+        // Atualiza Gráfico de RSI
+        rsiChart.data.labels = labels;
+        const rsiPadding = new Array(history.length - rsi.length).fill(null);
+        rsiChart.data.datasets[0].data = rsiPadding.concat(rsi);
+        
+        // Adiciona linhas de referência (30 e 70) visualmente se quiser, mas o básico está aqui
+        rsiChart.update();
 
     }, 1000);
 }
