@@ -26,6 +26,24 @@
         <canvas id="rsiChart"></canvas>
     </div>
 
+    <div style="width: 80%; margin: 20px auto; padding: 15px; border: 2px solid #333; border-radius: 10px; background-color: #f9f9f9; display: flex; justify-content: space-between; align-items: center; font-family: sans-serif;">
+        
+        <div>
+            <button id="btn-buy" style="background-color: green; color: white; padding: 10px 20px; font-size: 16px; border: none; cursor: pointer; border-radius: 5px; margin-right: 10px;">
+                COMPRAR
+            </button>
+            <button id="btn-sell" style="background-color: red; color: white; padding: 10px 20px; font-size: 16px; border: none; cursor: pointer; border-radius: 5px;">
+                VENDER
+            </button>
+        </div>
+
+        <div style="text-align: right;">
+            <div style="font-size: 18px;">Saldo: <span id="wallet-balance" style="font-weight: bold;">R$ 10000.00</span></div>
+            <div style="font-size: 18px;">Ações: <span id="wallet-shares" style="font-weight: bold;">0</span></div>
+            <div style="font-size: 20px; margin-top: 5px;">Patrimônio: <span id="wallet-total" style="color: blue; font-weight: bold;">R$ 10000.00</span></div>
+        </div>
+    </div>
+
     <script type="module" src="./js/index.js"></script>
 </body>
 </html>

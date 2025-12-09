@@ -9,6 +9,58 @@ pub struct Stock {
 }
 
 #[wasm_bindgen]
+pub struct Wallet {
+    balance: f64, // Dinheiro em caixa
+    shares: i32,  // Quantidade de ações
+}
+
+#[wasm_bindgen]
+impl Wallet {
+    // Começa com um saldo inicial (ex: 10.000)
+    pub fn new(initial_balance: f64) -> Wallet {
+        Wallet {
+            balance: initial_balance,
+            shares: 0,
+        }
+    }
+
+    pub fn balance(&self) -> f64 {
+        self.balance
+    }
+
+    pub fn shares(&self) -> i32 {
+        self.shares
+    }
+
+    // Tenta comprar 1 ação pelo preço atual
+    // Retorna true se conseguiu, false se não teve dinheiro
+    pub fn buy_stock(&mut self, price: f64) -> bool {
+        if self.balance >= price {
+            self.balance -= price;
+            self.shares += 1;
+            return true;
+        }
+        false
+    }
+
+    // Tenta vender 1 ação pelo preço atual
+    // Retorna true se conseguiu, false se não tinha ações
+    pub fn sell_stock(&mut self, price: f64) -> bool {
+        if self.shares > 0 {
+            self.balance += price;
+            self.shares -= 1;
+            return true;
+        }
+        false
+    }
+
+    // Calcula quanto vale tudo (Dinheiro + Ações convertidas no preço atual)
+    pub fn total_value(&self, current_stock_price: f64) -> f64 {
+        self.balance + (self.shares as f64 * current_stock_price)
+    }
+}
+
+#[wasm_bindgen]
 impl Stock {
     pub fn new(symbol: String, start_price: f64) -> Stock {
         let mut history = Vec::new();
@@ -140,4 +192,7 @@ impl Stock {
         // 4. Desvio Padrão é a raiz quadrada da variância
         variance.sqrt()
     }
+
+
+    
 }
