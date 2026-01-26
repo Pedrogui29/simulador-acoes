@@ -3,44 +3,233 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simulador de Mercado (Rust + Vite)</title>
-    
+    <title>Simulador Pro | Rust + Wasm</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    
+    <style>
+        /* --- ESTILO DARK MODE PERMANENTE --- */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #121212; /* Fundo Preto */
+            color: #e0e0e0; /* Texto Claro */
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Container Principal (Dashboard) Largo */
+        .dashboard {
+            width: 100%;
+            max-width: 1200px; /* Largura aumentada para não espremer */
+            background: #1e1e1e; /* Card Cinza Escuro */
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            padding: 25px;
+            box-sizing: border-box;
+        }
+
+        /* Cabeçalho */
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 26px;
+            color: #f0f0f0;
+        }
+
+        /* --- Cards da Home (Grid) --- */
+        #cards-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); 
+            gap: 25px;
+            padding: 10px 0;
+        }
+
+        .stock-card {
+            background: #2c2c2c;
+            border: 1px solid #444;
+            border-radius: 12px;
+            padding: 25px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+            color: #e0e0e0;
+        }
+
+        .stock-card:hover {
+            transform: translateY(-5px);
+            border-color: #2196F3;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+
+        .card-symbol { font-size: 28px; font-weight: 800; color: #fff; margin-bottom: 5px; }
+        .card-name { font-size: 14px; color: #aaa; margin-bottom: 10px; }
+
+        /* --- Painel de Negociação --- */
+        .trading-panel {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #2c2c2c;
+            border: 1px solid #444;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .btn-group { display: flex; gap: 10px; }
+
+        .btn-group button {
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .btn-buy { background-color: #28a745; color: white; }
+        .btn-sell { background-color: #dc3545; color: white; }
+        .btn-buy:hover { background-color: #218838; }
+        .btn-sell:hover { background-color: #c82333; }
+        .btn-group button:active { transform: scale(0.95); }
+
+        .wallet-info { text-align: right; line-height: 1.5; font-size: 16px; }
+
+        /* Painel de Info Superior */
+        #stock-display {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #000;
+            border: 1px solid #333;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 18px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        /* --- Área dos Gráficos --- */
+        .charts-wrapper {
+            background: #252525;
+            border: 1px solid #444;
+            border-radius: 12px;
+            padding: 15px;
+        }
+
+        .chart-container-price {
+            height: 450px; /* Altura corrigida para não espremer */
+            width: 100%;
+            position: relative;
+        }
+        
+        .chart-container-rsi {
+            height: 150px;
+            width: 100%;
+            position: relative;
+            margin-top: 10px; 
+            border-top: 1px dashed #555;
+            padding-top: 10px;
+        }
+        
+        #btn-back {
+            background: #444 !important;
+            color: #fff !important;
+            border: 1px solid #555 !important;
+        }
+        #btn-back:hover { background: #555 !important; }
+
+    </style>
 </head>
 <body>
-    <h1>Simulador de Mercado (Rust + Vite)</h1>
-    
-    <div id="stock-display" style="font-size: 24px; font-weight: bold; color: green; margin-top: 20px;">
-        Carregando Wasm...
-    </div>
-    
-    <div style="width: 80%; height: 400px; margin: auto; margin-top: 20px;">
-        <canvas id="stockChart"></canvas>
-    </div>
-
-    <div style="width: 80%; height: 300px; margin: auto; margin-top: 20px;">
-        <canvas id="stockChart"></canvas>
-    </div>
-
-    <div style="width: 80%; height: 150px; margin: auto; margin-top: 20px;">
-        <canvas id="rsiChart"></canvas>
-    </div>
-
-    <div style="width: 80%; margin: 20px auto; padding: 15px; border: 2px solid #333; border-radius: 10px; background-color: #f9f9f9; display: flex; justify-content: space-between; align-items: center; font-family: sans-serif;">
-        
-        <div>
-            <button id="btn-buy" style="background-color: green; color: white; padding: 10px 20px; font-size: 16px; border: none; cursor: pointer; border-radius: 5px; margin-right: 10px;">
-                COMPRAR
-            </button>
-            <button id="btn-sell" style="background-color: red; color: white; padding: 10px 20px; font-size: 16px; border: none; cursor: pointer; border-radius: 5px;">
-                VENDER
-            </button>
+    <div class="dashboard">
+        <div class="header-container">
+            <h1>🚀 Rust Broker</h1>
+            <button id="btn-open-wallet" style="margin-left: 20px; background: #2196F3; border: none; padding: 8px 15px; border-radius: 5px; color: white; cursor: pointer; font-weight: bold;">
+            💼 Minha Carteira
+        </button>
+            <div style="text-align: right;">
+                <span style="font-size: 14px; color: #aaa;">Saldo Disponível</span><br>
+                <strong id="global-balance" style="font-size: 18px; color: #4caf50;">R$ 10.000,00</strong>
+            </div>
+            
         </div>
 
-        <div style="text-align: right;">
-            <div style="font-size: 18px;">Saldo: <span id="wallet-balance" style="font-weight: bold;">R$ 10000.00</span></div>
-            <div style="font-size: 18px;">Ações: <span id="wallet-shares" style="font-weight: bold;">0</span></div>
-            <div style="font-size: 20px; margin-top: 5px;">Patrimônio: <span id="wallet-total" style="color: blue; font-weight: bold;">R$ 10000.00</span></div>
+        <div id="home-screen">
+            <h2 style="margin-bottom: 20px; color: #ccc;">Mercado de Ações</h2>
+            <div id="cards-container">
+                </div>
+        </div>
+
+        <div id="trading-screen" style="display: none;"> 
+            <button id="btn-back" style="padding: 8px 15px; border-radius: 5px; cursor: pointer; margin-bottom: 15px;">⬅ Voltar para o Mercado</button>
+            
+            <div id="stock-display">
+                <span>Carregando...</span>
+            </div>
+
+            <div class="trading-panel">
+                <div class="btn-group">
+                    <button id="btn-buy" class="btn-buy">COMPRAR</button>
+                    <button id="btn-sell" class="btn-sell">VENDER</button>
+                </div>
+                <div class="wallet-info">
+                    <div>Ações (<span id="current-ticker"></span>): <strong id="wallet-shares">0</strong></div>
+                    <div style="font-size: 1.1em; margin-top: 5px;">
+                        Patrimônio Total: <strong id="wallet-total" style="color: #2196F3;">...</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="charts-wrapper">
+                <div class="chart-container-price">
+                    <canvas id="stockChart"></canvas>
+                </div>
+                <div class="chart-container-rsi">
+                    <canvas id="rsiChart"></canvas>
+                </div>
+            </div>
+        </div>
+       
+        <div id="wallet-screen" style="display: none;">
+            <button id="btn-back-wallet" style="background: #444; color: #fff; border: 1px solid #555; padding: 8px 15px; border-radius: 5px; cursor: pointer; margin-bottom: 20px;">
+                ⬅ Voltar
+            </button>
+
+            <h2 style="color: #eee; border-bottom: 1px solid #333; padding-bottom: 10px;">Resumo Patrimonial</h2>
+
+            <div style="background: #2c2c2c; border-radius: 10px; padding: 20px; margin-bottom: 20px;">
+                <table style="width: 100%; border-collapse: collapse; color: #e0e0e0;">
+                    <thead>
+                        <tr style="text-align: left; border-bottom: 1px solid #444;">
+                            <th style="padding: 10px;">Ativo</th>
+                            <th style="padding: 10px;">Quantidade</th>
+                            <th style="padding: 10px;">Preço Médio</th>
+                            <th style="padding: 10px;">Total Investido</th>
+                        </tr>
+                    </thead>
+                    <tbody id="wallet-table-body">
+                        </tbody>
+                </table>
+                <div id="wallet-empty-msg" style="text-align: center; padding: 20px; color: #777; display: none;">
+                    Sua carteira está vazia. Vá ao mercado para comprar ações!
+                </div>
+            </div>
         </div>
     </div>
 
