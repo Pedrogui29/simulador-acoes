@@ -3,7 +3,15 @@ use js_sys;
 use std::collections::BTreeMap;
 use serde::{Serialize, Deserialize};
 
-// 1. Estrutura da Ação (Stock)
+// --- SIMULAÇÃO DE TIPOS DO SUBSTRATE ---
+// AccountData: estrutura padrão para guardar dados de conta
+#[derive(Serialize, Deserialize)]
+pub struct AccountData {
+    pub shares: i32,
+    pub avg_price: f64, 
+}
+
+// 1. Estrutura da Ação (Stock) 
 #[wasm_bindgen]
 pub struct Stock {
     symbol: String,
@@ -11,73 +19,80 @@ pub struct Stock {
     history: Vec<f64>,
 }
 
-// 2. Estrutura auxiliar para guardar Qtd e Preço Médio (Holding)
-#[derive(Serialize, Deserialize)]
-pub struct Holding {
-    pub shares: i32,
-    pub avg_price: f64, 
-}
-
-// 3. Estrutura da Carteira (Wallet)
+// 2. O PALLET 
+// PalletAssets seguindo o padrão de nomenclatura de módulos do Substrate
 #[wasm_bindgen]
-pub struct Wallet {
-    balance: f64,
-    // Mapa: "PETR4" -> { shares: 10, avg_price: 30.50 }
-    holdings: BTreeMap<String, Holding>, 
+pub struct PalletAssets {
+    // Balance: saldo
+    free_balance: f64,
+    // Storage: onde os dados persistem na blockchain
+    account_store: BTreeMap<String, AccountData>, 
 }
 
 #[wasm_bindgen]
-impl Wallet {
-    pub fn new(initial_balance: f64) -> Wallet {
-        Wallet {
-            balance: initial_balance,
-            holdings: BTreeMap::new(),
+impl PalletAssets {
+    // Construtor (Simula o Genesis Config da chain)
+    pub fn new(initial_balance: f64) -> PalletAssets {
+        PalletAssets {
+            free_balance: initial_balance,
+            account_store: BTreeMap::new(),
         }
     }
 
-    pub fn balance(&self) -> f64 {
-        self.balance
+    // --- VIEW FUNCTIONS (Leitura de estado) ---
+
+    pub fn get_balance(&self) -> f64 {
+        self.free_balance
     }
 
-    // Retorna o JSON para montar a tabela no JS
-    pub fn get_holdings_json(&self) -> String {
-        serde_json::to_string(&self.holdings).unwrap_or_else(|_| "{}".to_string())
+    // Retorna o estado do Storage em JSON para o Frontend
+    pub fn get_portfolio_json(&self) -> String {
+        serde_json::to_string(&self.account_store).unwrap_or_else(|_| "{}".to_string())
     }
 
-    // Pega a quantidade de ações de um símbolo específico
-    pub fn shares_of(&self, symbol: String) -> i32 {
-        self.holdings.get(&symbol).map(|h| h.shares).unwrap_or(0)
+    pub fn balance_of(&self, symbol: String) -> i32 {
+        self.account_store.get(&symbol).map(|h| h.shares).unwrap_or(0)
     }
 
-    // Pega o total de ações (soma de todas)
-    pub fn shares(&self) -> i32 {
-        self.holdings.values().map(|h| h.shares).sum()
+    // Helper para o JS calcular patrimônio total (On-chain logic)
+    pub fn calculate_total_wealth(&self, symbol: String, current_price: f64) -> f64 {
+        let shares = self.balance_of(symbol);
+        self.free_balance + (shares as f64 * current_price)
     }
 
-    // Compra Ação (Lógica Nova: Com Símbolo e Preço Médio)
-    pub fn buy_stock(&mut self, symbol: String, price: f64) -> bool {
-        if self.balance < price { return false; }
+    // --- EXTRINSICS (Chamadas de transação que alteram o estado) ---
+
+    /// Transação: Comprar Ativo
+    /// Signed Extrinsic
+    pub fn call_buy(&mut self, symbol: String, price: f64) -> bool {
+        // 1. Verify (Ensure Balance)
+        if self.free_balance < price { 
+            return false; 
+        }
         
-        self.balance -= price;
+        // 2. Execute (State Transition)
+        self.free_balance -= price;
         
-        let holding = self.holdings.entry(symbol).or_insert(Holding { shares: 0, avg_price: 0.0 });
+        let data = self.account_store.entry(symbol).or_insert(AccountData { shares: 0, avg_price: 0.0 });
         
-        // Cálculo de Preço Médio Ponderado
-        let total_cost = (holding.shares as f64 * holding.avg_price) + price;
-        holding.shares += 1;
-        holding.avg_price = total_cost / holding.shares as f64;
+        // Lógica de Preço Médio
+        let total_cost = (data.shares as f64 * data.avg_price) + price;
+        data.shares += 1;
+        data.avg_price = total_cost / data.shares as f64;
         
-        true
+        true // Evento de sucesso implícito
     }
 
-    // Venda Ação (Lógica Nova: Com Símbolo)
-    pub fn sell_stock(&mut self, symbol: String, price: f64) -> bool {
-        if let Some(holding) = self.holdings.get_mut(&symbol) {
-            if holding.shares > 0 {
-                self.balance += price;
-                holding.shares -= 1;
-                if holding.shares == 0 {
-                    self.holdings.remove(&symbol);
+    /// Transação: Vender Ativo
+    pub fn call_sell(&mut self, symbol: String, price: f64) -> bool {
+        if let Some(data) = self.account_store.get_mut(&symbol) {
+            if data.shares > 0 {
+                self.free_balance += price;
+                data.shares -= 1;
+                
+                // Pruning (Limpeza de storage se conta zerar)
+                if data.shares == 0 {
+                    self.account_store.remove(&symbol);
                 }
                 return true;
             }
@@ -86,7 +101,7 @@ impl Wallet {
     }
 }
 
-// 4. Implementação da Ação (Stock)
+// 3. Implementação da Ação (Stock) 
 #[wasm_bindgen]
 impl Stock {
     pub fn new(symbol: String, start_price: f64) -> Stock {
@@ -194,7 +209,6 @@ impl Stock {
         let mut predicted_prices = Vec::new();
         for i in 1..=steps {
             let future_x = (n + i - 1) as f64;
-            // 👇 AQUI ESTAVA O ERRO! Adicionei o 'let'
             let predicted_y = slope * future_x + intercept; 
             predicted_prices.push(predicted_y);
         }

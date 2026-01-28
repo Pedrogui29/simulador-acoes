@@ -1,4 +1,5 @@
-import init, { Stock, Wallet } from "../pkg/rust_webpack_template.js";
+// 1. Importamos PalletAssets em vez de Wallet
+import init, { Stock, PalletAssets } from "../pkg/rust_webpack_template.js";
 
 const MARKET_DATA = [
     { symbol: "PETR4", name: "Petrobras", startPrice: 30.00 },
@@ -16,31 +17,30 @@ let charts = { price: null, rsi: null };
 
 async function startApp() {
     await init();
-    globalWallet = Wallet.new(10000.00);
+    
+    // 2. Instanciar PalletAssets (O novo nome da Wallet)
+    globalWallet = PalletAssets.new(10000.00);
+    
     atualizarSaldoGlobal();
     renderHomeScreen();
 
-    // Botão Voltar do Trade -> Home
     document.getElementById('btn-back').onclick = () => {
         stopSimulation();
         switchScreen('home-screen');
         atualizarSaldoGlobal();
     };
 
-    // Botão Abrir Carteira -> Wallet
     document.getElementById('btn-open-wallet').onclick = () => {
         stopSimulation();
-        renderWalletTable(); // 👈 Gera a tabela
+        renderWalletTable();
         switchScreen('wallet-screen');
     };
 
-    // Botão Voltar da Carteira -> Home
     document.getElementById('btn-back-wallet').onclick = () => {
         switchScreen('home-screen');
     };
 }
 
-// Função auxiliar para trocar telas
 function switchScreen(screenId) {
     ['home-screen', 'trading-screen', 'wallet-screen'].forEach(id => {
         document.getElementById(id).style.display = (id === screenId) ? 'block' : 'none';
@@ -52,9 +52,8 @@ function renderWalletTable() {
     const emptyMsg = document.getElementById('wallet-empty-msg');
     tbody.innerHTML = '';
 
-    // Pega o JSON do Rust e converte para Objeto JS
-    // O Rust retorna algo como: { "PETR4": { "shares": 10, "avg_price": 30.0 } }
-    const holdings = JSON.parse(globalWallet.get_holdings_json());
+    // 3. get_portfolio_json
+    const holdings = JSON.parse(globalWallet.get_portfolio_json());
     const symbols = Object.keys(holdings);
 
     if (symbols.length === 0) {
@@ -106,7 +105,7 @@ function openStockDetail(stockInfo) {
 function startSimulation(symbol, startPrice) {
     currentStock = Stock.new(symbol, startPrice);
     initCharts();
-    setupTradingButtons(symbol); // Passamos o simbolo agora
+    setupTradingButtons(symbol);
 
     simulationInterval = setInterval(() => {
         currentStock.update_price();
@@ -128,8 +127,8 @@ function setupTradingButtons(symbol) {
     btnSell.parentNode.replaceChild(newBtnSell, btnSell);
 
     newBtnBuy.onclick = () => {
-        // Agora passamos o Símbolo para a Wallet saber qual ação é
-        if (globalWallet.buy_stock(symbol, currentStock.price())) {
+        // 4. call_buy (Transação Externa)
+        if (globalWallet.call_buy(symbol, currentStock.price())) {
             updateUI(symbol); 
         } else {
             alert("Saldo insuficiente!");
@@ -137,7 +136,8 @@ function setupTradingButtons(symbol) {
     };
 
     newBtnSell.onclick = () => {
-        if (globalWallet.sell_stock(symbol, currentStock.price())) {
+        // 5. call_sell
+        if (globalWallet.call_sell(symbol, currentStock.price())) {
             updateUI(symbol);
         } else {
             alert("Sem ações desta empresa para vender!");
@@ -149,6 +149,7 @@ function initCharts() {
     if (charts.price) charts.price.destroy();
     if (charts.rsi) charts.rsi.destroy();
 
+    // Configuração visual para Dark Mode (texto claro)
     const ctxPrice = document.getElementById('stockChart').getContext('2d');
     charts.price = new Chart(ctxPrice, {
         type: 'line',
@@ -191,7 +192,6 @@ function updateUI(symbol) {
     let prediction = [];
     if (typeof currentStock.predict_trend === 'function') prediction = Array.from(currentStock.predict_trend(5));
 
-    // Display
     const display = document.getElementById("stock-display");
     display.innerHTML = `
         <span style="font-weight: bold;">${currentStock.symbol()}</span>
@@ -200,12 +200,11 @@ function updateUI(symbol) {
         <span style="color: orange">Volat: ${volatility.toFixed(3)}</span>
     `;
 
-    // Atualiza a quantidade específica daquela ação
-    document.getElementById("wallet-shares").innerText = globalWallet.shares_of(symbol);
+    // 6. balance_of (Query Function)
+    document.getElementById("wallet-shares").innerText = globalWallet.balance_of(symbol);
     
-    // Total Patrimônio (Saldo + Valor da ação atual * quantidade dela)
-    // Nota: O ideal seria somar todas, mas aqui simplificamos
-    const totalPatrimony = globalWallet.balance() + (globalWallet.shares_of(symbol) * price);
+    // 7. Cálculo via método novo do Rust
+    const totalPatrimony = globalWallet.calculate_total_wealth(symbol, price);
     
     document.getElementById("wallet-total").innerText = `R$ ${totalPatrimony.toFixed(2)}`;
     atualizarSaldoGlobal();
@@ -229,7 +228,8 @@ function updateUI(symbol) {
 
 function atualizarSaldoGlobal() {
     const el = document.getElementById("global-balance");
-    if(el) el.innerText = `R$ ${globalWallet.balance().toFixed(2)}`;
+    // 8. get_balance()
+    if(el) el.innerText = `R$ ${globalWallet.get_balance().toFixed(2)}`;
 }
 
 startApp().catch(console.error);
