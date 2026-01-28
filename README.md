@@ -43,3 +43,18 @@ O motor financeiro foi escrito inteiramente em Rust para garantir segurança de 
    Gera os binários .wasm otimizados para web.
    ```bash
    wasm-pack build --target web
+2. **Iniciar o Servidor Local: Necessário para carregar módulos Wasm (bypass CORS).**
+   python3 -m http.server 8080
+3. **Acessar:**
+   Abra o navegador em http://localhost:8080.
+
+
+## 🏗️ Decisões de Arquitetura (Rust)
+A escolha de não utilizar um nó completo de blockchain (como Substrate puro) foi baseada na necessidade de baixa latência para a simulação de Day Trade. No entanto, o código foi estruturado mimetizando a organização de uma Runtime Substrate:
+
+src/lib.rs: Contém o Runtime.
+struct PalletAssets: Simula o módulo de ativos.
+struct AccountData: Simula o armazenamento de estado (Storage).
+fn call_*: Simulam as chamadas extrínsecas (Transações).
+
+Isso garante que o projeto seja performático para web, mas mantenha a integridade e padrões de projeto de sistemas distribuídos modernos.   
